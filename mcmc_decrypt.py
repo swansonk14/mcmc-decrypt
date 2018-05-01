@@ -4,8 +4,8 @@ import argparse
 from collections import Counter
 import copy
 import csv
-import json
-from math import log2
+import matplotlib
+matplotlib.rcParams.update({'font.size': 30})
 from matplotlib import pyplot as plt
 import numpy as np
 from sklearn.metrics import accuracy_score
@@ -75,6 +75,7 @@ def decrypt(f, y):
 
 class Counts:
     def __init__(self, y, alphabet):
+        self.y = y
         self.first = y[0]
         self.counts = np.zeros((len(alphabet), len(alphabet)))
         for i in range(1, len(y)):
@@ -164,10 +165,8 @@ def main(custom_encrypt, num_iters, num_mcmc):
 
     # Convert text to indices and load probabilities
     y_counts = Counts(y, alphabet)
-    P = get_letter_probabilities()
-    M = get_letter_transition_matrix()
-    log_P = np.log(P)
-    log_M = np.nan_to_num(np.log(M))
+    log_P = np.log2(get_letter_probabilities())
+    log_M = np.nan_to_num(np.log2(get_letter_transition_matrix()))
 
     # Run MCMC
     f_star = multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmc)
