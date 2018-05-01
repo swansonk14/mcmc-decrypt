@@ -142,7 +142,11 @@ def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
 
     return f_star, log_likelihood
 
-def multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmcs):
+def multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmcs):
+    start = np.random.randint(max(0, len(y)-training_size) + 1)
+    training_y = y[start:start+training_size]
+    y_counts = Counts(training_y, alphabet)
+
     best_f = None
     best_log_likelihood = float('-inf')
 
@@ -155,7 +159,7 @@ def multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmcs):
 
     return best_f
 
-def main(custom_encrypt, num_iters, num_mcmc):
+def main(custom_encrypt, training_size, num_iters, num_mcmc):
     # Load alphabet and text
     alphabet = get_alphabet()
     if custom_encrypt:
@@ -164,12 +168,11 @@ def main(custom_encrypt, num_iters, num_mcmc):
         y = char_to_index(get_text('ciphertext.txt'), alphabet)
 
     # Convert text to indices and load probabilities
-    y_counts = Counts(y, alphabet)
-    log_P = np.log2(get_letter_probabilities())
-    log_M = np.nan_to_num(np.log2(get_letter_transition_matrix()))
+    log_P = np.log(get_letter_probabilities())
+    log_M = np.nan_to_num(np.log(get_letter_transition_matrix()))
 
     # Run MCMC
-    f_star = multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmc)
+    f_star = multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmc)
 
     # Decrypt full ciphertext
     x_hat = decrypt(f_star, y)
@@ -185,10 +188,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--custom_encrypt', action='store_true', default=False,
         help='Whether to use a custom encryption permutation instead of the default')
+    parser.add_argument('--training_size', type=int, default=1000,
+        help='Number of characters to use when learning decryption function')
     parser.add_argument('--num_iters', type=int, default=10000,
         help='Number of iterations in each MCMC run')
     parser.add_argument('--num_mcmc', type=int, default=10,
         help='Number of times to run MCMC algorithm')
     args = parser.parse_args()
 
-    main(args.custom_encrypt, args.num_iters, args.num_mcmc)
+    main(args.custom_encrypt, args.training_size, args.num_iters, args.num_mcmc)
