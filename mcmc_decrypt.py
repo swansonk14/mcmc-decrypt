@@ -11,99 +11,103 @@ import numpy as np
 from sklearn.metrics import accuracy_score
 from tqdm import trange
 
-def get_alphabet():
-    with open('alphabet.csv', 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        for row in reader:
-            alphabet = row
+
+# DATA LOADING
+
+
+def get_alphabet(fname='alphabet.csv'):
+    with open(fname, 'r') as csvfile:
+        alphabet = np.array(list(csv.reader(csvfile))[0])
 
     return alphabet
 
-def get_text(fname='ciphertext.txt', as_array=True):
+def get_text(fname):
     with open(fname, 'r') as f:
-        text = f.read()
-
-    text = text.replace('\n', ' ')
-
-    if as_array:
-        text = list(text)
+        text = np.array(list(f.read().replace('\n', ' ')))
 
     return text
 
-def char_to_index(text, A):
-    char_index_mapping = {char: index for index, char in enumerate(A)}
+def get_letter_probabilities(fname='letter_probabilities.csv'):
+    with open(fname, 'r') as csvfile:
+        P = np.array([[float(p) for p in row] for row in csv.reader(csvfile)][0])
+
+    return P
+
+def get_letter_transition_matrix(fname='letter_transition_matrix.csv'):
+    with open(fname, 'r') as csvfile:
+        M = np.array([[float(p) for p in row] for row in csv.reader(csvfile)])
+
+    return M
+
+
+# TEXT MODIFICATION
+
+
+def char_to_index(text, alphabet):
+    char_index_mapping = {char: index for index, char in enumerate(alphabet)}
     indices = [char_index_mapping[char] for char in text]
 
     return indices
 
-def index_to_char(indices, A):
-    return [A[index] for index in indices]
+def index_to_char(indices, alphabet):
+    text = [alphabet[index] for index in indices]
 
-def get_letter_probabilities():
-    with open('letter_probabilities.csv', 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        for row in reader:
-            P = [float(p) for p in row]
+    return text
 
-    return np.array(P)
 
-def get_letter_transition_matrix():
-    with open('letter_transition_matrix.csv', 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        M = []
-        for row in reader:
-            M.append([float(p) for p in row])
+# ENCRYPTION AND DECRYPTION
 
-    return np.array(M)
 
-def random_permutation_f(array):
-    perm = np.random.permutation(array)
-    f = {array[i]: perm[i] for i in range(len(array))}
-
-    return f
-
-def encrypt(text, A):
-    f = random_permutation_f(A)
-    ciphertext = [f[char] for char in text]
+def encrypt(x, alphabet_size):
+    f = np.random.permutation(alphabet_size)
+    ciphertext = [f[x_i] for x_i in x]
 
     return ciphertext
 
-def invert_f(f):
-    f_inverse = {v: k for k, v in f.items()}
-
-    return f_inverse
-
 def decrypt(f, y):
-    f_inverse = invert_f(f)
-    x_hat = [f_inverse[y_i] for y_i in y]
+    x_hat = [f[y_i] for y_i in y]
 
     return x_hat
 
-def p_f_y_tilde(f, y, P, M):
-    # Note: equal to p_y_f
 
-    f_inverse = invert_f(f)
-    x_hat = decrypt(f, y)
-    p = P[x_hat[0]] * np.prod([M[x_hat[i], x_hat[i-1]] for i in range(1, len(x_hat))])
+# COUNTS CLASS
 
-    return p
 
-def log_p_f_y_tilde(f, y, P, M):
+class Counts:
+    def __init__(self, y, alphabet):
+        self.first = y[0]
+        self.counts = np.zeros((len(alphabet), len(alphabet)))
+        for i in range(1, len(y)):
+            self.counts[y[i], y[i-1]] += 1
+
+    def decrypt_counts(self, f):
+        f_inverse = np.zeros(len(f), dtype=int)
+        for index1, index2 in enumerate(f):
+            f_inverse[index2] = index1
+        decrypted_counts = self.counts[f_inverse]
+        decrypted_counts = decrypted_counts[:, f_inverse]
+
+        return decrypted_counts
+
+
+# MARKOV CHAIN MONTE CARLO
+
+
+def log_p_f_y_tilde(f, y_counts, log_P, log_M):
     # Note: equal to log(p_y_f)
 
-    f_inverse = invert_f(f)
-    x_hat = decrypt(f, y)
-    log_p = np.log2(P[x_hat[0]])
-    log_p += np.sum(np.log2([M[x_hat[i], x_hat[i-1]] for i in range(1, len(x_hat))]))
+    log_prob = log_P[f[y_counts.first]] + \
+               np.sum(np.multiply(log_M,
+                                  y_counts.decrypt_counts(f)))
 
-    return log_p
+    return log_prob
 
-def acceptance_prob(f, f_prime, y, P, M):
+def acceptance_prob(f, f_prime, y_counts, log_P, log_M):
     # p_f_prime / p_f = exp(log(p_f_prime)) / exp(log(p_f))
     # = exp(log(p_f_prime) - log(p_f))
 
-    log_p_f_y_tilde_f_prime = log_p_f_y_tilde(f_prime, y, P, M)
-    log_p_f_y_tilde_f = log_p_f_y_tilde(f, y, P, M)
+    log_p_f_y_tilde_f_prime = log_p_f_y_tilde(f_prime, y_counts, log_P, log_M)
+    log_p_f_y_tilde_f = log_p_f_y_tilde(f, y_counts, log_P, log_M)
     ratio = np.exp(log_p_f_y_tilde_f_prime - log_p_f_y_tilde_f)
 
     a = min(1, ratio)
@@ -113,37 +117,39 @@ def acceptance_prob(f, f_prime, y, P, M):
 def most_common(lst):
     counter = Counter(lst)
     most_common_element, count = counter.most_common()[0]
+    print('COUNT')
+    print(count)
+    print()
 
     return most_common_element
 
-def mcmc(A, y, P, M, num_iters):
-    indices = list(range(len(A)))
+def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
     fs = []
-    f = random_permutation_f(indices)  # random initialization
+    f = np.random.permutation(len(alphabet))  # random initialization
 
     for _ in trange(num_iters):
-        index1, index2 = np.random.choice(indices, size=2, replace=False)
+        index1, index2 = np.random.choice(len(alphabet), size=2, replace=False)
         f_prime = copy.deepcopy(f)
         f_prime[index1], f_prime[index2] = f_prime[index2], f_prime[index1]
 
-        a = acceptance_prob(f, f_prime, y, P, M)
+        a = acceptance_prob(f, f_prime, y_counts, log_P, log_M)
 
         if np.random.rand() <= a:
             f = f_prime
 
-        fs.append(str(f))
+        fs.append(str(f.tolist()))
 
-    f_star = eval(most_common(fs))
-    log_likelihood = log_p_f_y_tilde(f, y, P, M)
+    f_star = np.array(eval(most_common(fs)))
+    log_likelihood = log_p_f_y_tilde(f_star, y_counts, log_P, log_M)
 
     return f_star, log_likelihood
 
-def multi_mcmc(A, y, P, M, num_iters, num_mcmcs):
+def multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmcs):
     best_f = None
     best_log_likelihood = float('-inf')
 
     for _ in trange(num_mcmcs):
-        f, log_likelihood = mcmc(A, y, P, M, num_iters)
+        f, log_likelihood = mcmc(alphabet, y_counts, log_P, log_M, num_iters)
         print(log_likelihood)
 
         if log_likelihood >= best_log_likelihood:
@@ -153,23 +159,33 @@ def multi_mcmc(A, y, P, M, num_iters, num_mcmcs):
     return best_f
 
 def main(custom_encrypt, training_size, num_iters, num_mcmc):
-    A = get_alphabet()
+    # Load alphabet and text
+    alphabet = get_alphabet()
     if custom_encrypt:
-        ciphertext = encrypt(get_text('plaintext.txt'), A)
+        ciphertext = encrypt(get_text('plaintext.txt'), alphabet)
     else:
         ciphertext = get_text('ciphertext.txt')
     training_ciphertext = ciphertext[:training_size]
-    y = char_to_index(training_ciphertext, A)
+
+    # Convert text to indices and load probabilities
+    y = char_to_index(training_ciphertext, alphabet)
+    y_counts = Counts(y, alphabet)
     P = get_letter_probabilities()
     M = get_letter_transition_matrix()
+    log_P = np.log(P)
+    log_M = np.nan_to_num(np.log(M))
 
-    f_star = multi_mcmc(A, y, P, M, num_iters, num_mcmc)
+    # Run MCMC
+    f_star = multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmc)
+    print(index_to_char(f_star, alphabet))
 
-    y_full = char_to_index(ciphertext, A)
+    # Decrypt full ciphertext
+    y_full = char_to_index(ciphertext, alphabet)
     x_hat = decrypt(f_star, y_full)
-    plaintext_hat = index_to_char(x_hat, A)
+    plaintext_hat = index_to_char(x_hat, alphabet)
     print(''.join(plaintext_hat))
 
+    # Compare decryption to read plaintext
     plaintext = get_text('plaintext.txt')
     print('Accuracy = {}'.format(accuracy_score(plaintext, plaintext_hat)))
 
@@ -182,7 +198,7 @@ if __name__ == '__main__':
         help='Number of characters to use when learning decryption function')
     parser.add_argument('--num_iters', type=int, default=10000,
         help='Number of iterations in each MCMC run')
-    parser.add_argument('--num_mcmc', type=int, default=10,
+    parser.add_argument('--num_mcmc', type=int, default=1,
         help='Number of times to run MCMC algorithm')
     args = parser.parse_args()
 
