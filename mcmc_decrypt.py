@@ -58,11 +58,11 @@ def index_to_char(indices, alphabet):
 # ENCRYPTION AND DECRYPTION
 
 
-def encrypt(x, alphabet_size):
-    f = np.random.permutation(alphabet_size)
-    ciphertext = [f[x_i] for x_i in x]
+def encrypt(x, alphabet):
+    f = np.random.permutation(len(alphabet))
+    y = [f[x_i] for x_i in x]
 
-    return ciphertext
+    return y
 
 def decrypt(f, y):
     x_hat = [f[y_i] for y_i in y]
@@ -116,10 +116,7 @@ def acceptance_prob(f, f_prime, y_counts, log_P, log_M):
 
 def most_common(lst):
     counter = Counter(lst)
-    most_common_element, count = counter.most_common()[0]
-    print('COUNT')
-    print(count)
-    print()
+    most_common_element = counter.most_common()[0][0]
 
     return most_common_element
 
@@ -150,7 +147,6 @@ def multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmcs):
 
     for _ in trange(num_mcmcs):
         f, log_likelihood = mcmc(alphabet, y_counts, log_P, log_M, num_iters)
-        print(log_likelihood)
 
         if log_likelihood >= best_log_likelihood:
             best_f = f
@@ -158,17 +154,15 @@ def multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmcs):
 
     return best_f
 
-def main(custom_encrypt, training_size, num_iters, num_mcmc):
+def main(custom_encrypt, num_iters, num_mcmc):
     # Load alphabet and text
     alphabet = get_alphabet()
     if custom_encrypt:
-        ciphertext = encrypt(get_text('plaintext.txt'), alphabet)
+        y = encrypt(char_to_index(get_text('plaintext.txt'), alphabet), alphabet)
     else:
-        ciphertext = get_text('ciphertext.txt')
-    training_ciphertext = ciphertext[:training_size]
+        y = char_to_index(get_text('ciphertext.txt'), alphabet)
 
     # Convert text to indices and load probabilities
-    y = char_to_index(training_ciphertext, alphabet)
     y_counts = Counts(y, alphabet)
     P = get_letter_probabilities()
     M = get_letter_transition_matrix()
@@ -177,11 +171,9 @@ def main(custom_encrypt, training_size, num_iters, num_mcmc):
 
     # Run MCMC
     f_star = multi_mcmc(alphabet, y_counts, log_P, log_M, num_iters, num_mcmc)
-    print(index_to_char(f_star, alphabet))
 
     # Decrypt full ciphertext
-    y_full = char_to_index(ciphertext, alphabet)
-    x_hat = decrypt(f_star, y_full)
+    x_hat = decrypt(f_star, y)
     plaintext_hat = index_to_char(x_hat, alphabet)
     print(''.join(plaintext_hat))
 
@@ -194,12 +186,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--custom_encrypt', action='store_true', default=False,
         help='Whether to use a custom encryption permutation instead of the default')
-    parser.add_argument('--training_size', type=int, default=1000,
-        help='Number of characters to use when learning decryption function')
     parser.add_argument('--num_iters', type=int, default=10000,
         help='Number of iterations in each MCMC run')
-    parser.add_argument('--num_mcmc', type=int, default=1,
+    parser.add_argument('--num_mcmc', type=int, default=10,
         help='Number of times to run MCMC algorithm')
     args = parser.parse_args()
 
-    main(args.custom_encrypt, args.training_size, args.num_iters, args.num_mcmc)
+    main(args.custom_encrypt, args.num_iters, args.num_mcmc)
