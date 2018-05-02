@@ -12,7 +12,7 @@ from sklearn.metrics import accuracy_score
 from tqdm import trange
 
 
-# DATA LOADING
+# ALPHABET
 
 
 def get_alphabet(fname='alphabet.csv'):
@@ -21,11 +21,34 @@ def get_alphabet(fname='alphabet.csv'):
 
     return alphabet
 
-def get_text(fname):
+
+# TEXT MODIFICATION
+
+
+def char_to_index(text, alphabet=None):
+    alphabet = alphabet if alphabet is not None else get_alphabet()
+
+    char_index_mapping = {char: index for index, char in enumerate(alphabet)}
+    indices = [char_index_mapping[char] for char in text]
+
+    return indices
+
+def index_to_char(indices, alphabet=None):
+    alphabet = alphabet if alphabet is not None else get_alphabet()
+
+    text = [alphabet[index] for index in indices]
+
+    return text
+
+
+# DATA LOADING
+
+
+def get_text(fname, indices=False):
     with open(fname, 'r') as f:
         text = np.array(list(f.read().replace('\n', ' ')))
 
-    return text
+    return char_to_index(text) if indices else text
 
 def get_letter_probabilities(fname='letter_probabilities.csv'):
     with open(fname, 'r') as csvfile:
@@ -38,21 +61,6 @@ def get_letter_transition_matrix(fname='letter_transition_matrix.csv'):
         M = np.array([[float(p) for p in row] for row in csv.reader(csvfile)])
 
     return M
-
-
-# TEXT MODIFICATION
-
-
-def char_to_index(text, alphabet):
-    char_index_mapping = {char: index for index, char in enumerate(alphabet)}
-    indices = [char_index_mapping[char] for char in text]
-
-    return indices
-
-def index_to_char(indices, alphabet):
-    text = [alphabet[index] for index in indices]
-
-    return text
 
 
 # ENCRYPTION AND DECRYPTION
@@ -125,6 +133,8 @@ def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
     fs = []
     f = np.random.permutation(len(alphabet))  # random initialization
 
+    # paintext = char_to_index(get_text('plaintext.txt')
+
     for _ in trange(num_iters):
         index1, index2 = np.random.choice(len(alphabet), size=2, replace=False)
         f_prime = copy.deepcopy(f)
@@ -163,9 +173,9 @@ def main(custom_encrypt, training_size, num_iters, num_mcmc):
     # Load alphabet and text
     alphabet = get_alphabet()
     if custom_encrypt:
-        y = encrypt(char_to_index(get_text('plaintext.txt'), alphabet), alphabet)
+        y = encrypt(get_text('plaintext.txt', indices=True), alphabet)
     else:
-        y = char_to_index(get_text('ciphertext.txt'), alphabet)
+        y = get_text('ciphertext.txt', indices=True)
 
     # Convert text to indices and load probabilities
     log_P = np.log(get_letter_probabilities())
