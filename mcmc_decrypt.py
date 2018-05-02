@@ -133,8 +133,6 @@ def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
     fs = []
     f = np.random.permutation(len(alphabet))  # random initialization
 
-    # paintext = char_to_index(get_text('plaintext.txt')
-
     for _ in trange(num_iters):
         index1, index2 = np.random.choice(len(alphabet), size=2, replace=False)
         f_prime = copy.deepcopy(f)
