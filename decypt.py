@@ -60,7 +60,7 @@ def get_letter_transition_matrix(fname='letter_transition_matrix.csv'):
 # DECRYPTION
 
 
-def decrypt_text(f, y):
+def decrypt(f, y):
     x_hat = [f[y_i] for y_i in y]
     plaintext_hat = ''.join(index_to_char(x_hat))
 
@@ -159,11 +159,11 @@ def multi_mcmc(y, training_size, log_P, log_M, num_iters, num_mcmcs):
     return best_f
 
 
-# DECRYPT
+# DECODE
 
 
-def decrypt(ciphertext, output_file_name,
-            training_size=1000, num_iters=10000, num_mcmc=10):
+def decode(ciphertext, output_file_name,
+           training_size=1000, num_iters=10000, num_mcmc=10):
     # Convert text to indices
     y = char_to_index(ciphertext)
 
@@ -175,7 +175,7 @@ def decrypt(ciphertext, output_file_name,
     f_star = multi_mcmc(y, training_size, log_P, log_M, num_iters, num_mcmc)
 
     # Decrypt full ciphertext
-    plaintext_hat = decrypt_text(f_star, y)
+    plaintext_hat = decrypt(f_star, y)
 
     # Write decryption
     with open(output_file_name, 'w') as f:
