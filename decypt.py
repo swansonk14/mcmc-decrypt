@@ -6,7 +6,6 @@ import copy
 import csv
 import numpy as np
 from tempfile import NamedTemporaryFile
-from tqdm import trange
 
 
 # ALPHABET
@@ -133,7 +132,7 @@ def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
     fs = []
     f = np.random.permutation(len(alphabet))  # random initialization
 
-    for _ in trange(num_iters):
+    for _ in range(num_iters):
         index1, index2 = np.random.choice(len(alphabet), size=2, replace=False)
         f_prime = copy.deepcopy(f)
         f_prime[index1], f_prime[index2] = f_prime[index2], f_prime[index1]
@@ -158,7 +157,7 @@ def multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmcs):
     best_f = None
     best_log_likelihood = float('-inf')
 
-    for _ in trange(num_mcmcs):
+    for _ in range(num_mcmcs):
         f, log_likelihood = mcmc(alphabet, y_counts, log_P, log_M, num_iters)
 
         if log_likelihood >= best_log_likelihood:
