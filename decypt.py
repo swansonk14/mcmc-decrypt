@@ -5,7 +5,6 @@ from collections import Counter
 import copy
 import csv
 import numpy as np
-from tempfile import NamedTemporaryFile
 from tqdm import trange
 
 
@@ -41,11 +40,11 @@ def index_to_char(indices, alphabet=None):
 # DATA LOADING
 
 
-def get_text(fname, indices=False):
+def get_text(fname):
     with open(fname, 'r') as f:
-        text = np.array(list(f.read().replace('\n', ' ')))
+        text = f.read().replace('\n', ' ')
 
-    return char_to_index(text) if indices else text
+    return text
 
 def get_letter_probabilities(fname='letter_probabilities.csv'):
     with open(fname, 'r') as csvfile:
@@ -68,14 +67,15 @@ def encrypt_text(x, alphabet=None):
 
     perm = np.random.permutation(alphabet)
     f = {alphabet[i]: perm[i] for i in range(len(alphabet))}
-    y = [f[x_i] for x_i in x]
+    ciphertext = ''.join([f[x_i] for x_i in x])
 
-    return y
+    return ciphertext
 
 def decrypt_text(f, y):
     x_hat = [f[y_i] for y_i in y]
+    plaintext_hat = ''.join(index_to_char(x_hat))
 
-    return x_hat
+    return plaintext_hat
 
 
 # COUNTS CLASS
@@ -150,7 +150,9 @@ def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
 
     return f_star, log_likelihood
 
-def multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmcs):
+def multi_mcmc(y, training_size, log_P, log_M, num_iters, num_mcmcs):
+    alphabet = get_alphabet()
+
     start = np.random.randint(max(0, len(y)-training_size) + 1)
     training_y = y[start:start+training_size]
     y_counts = Counts(training_y, alphabet)
@@ -168,24 +170,11 @@ def multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmcs):
     return best_f
 
 
-# EVALUATION
-
-
-def accuracy_score(true, pred):
-    true = np.array(list(true))
-    pred = np.array(list(pred))
-    accuracy = np.sum(true == pred) / len(true)
-    
-    return accuracy
-
-
 # DECRYPT
 
 
-def decrypt(ciphertext, output_file_name,
-            training_size=1000, num_iters=10000, num_mcmc=10):
-    # Load alphabet and convert text to indices
-    alphabet = get_alphabet()
+def decrypt(ciphertext, training_size, num_iters, num_mcmc):
+    # Convert text to indices
     y = char_to_index(ciphertext)
 
     # Load probabilities and convert to log domain
@@ -193,17 +182,23 @@ def decrypt(ciphertext, output_file_name,
     log_M = np.nan_to_num(np.log(get_letter_transition_matrix()))
 
     # Run MCMC
-    f_star = multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmc)
+    f_star = multi_mcmc(y, training_size, log_P, log_M, num_iters, num_mcmc)
 
     # Decrypt full ciphertext
-    x_hat = decrypt_text(f_star, y)
-    plaintext_hat = ''.join(index_to_char(x_hat, alphabet))
-
-    # Write decrypted ciphertext
-    with open(output_file_name, 'w') as f:
-        f.write(plaintext_hat)
+    plaintext_hat = decrypt_text(f_star, y)
 
     return plaintext_hat
+
+
+# EVALUATION
+
+
+def accuracy_score(plaintext, plaintext_hat):
+    plaintext = np.array(list(plaintext))
+    plaintext_hat = np.array(list(plaintext_hat))
+    accuracy = np.sum(plaintext == plaintext_hat) / len(plaintext)
+
+    return accuracy
 
 
 # MAIN
@@ -214,9 +209,8 @@ def main(plaintext_name, training_size, num_iters, num_mcmc):
     ciphertext = encrypt_text(get_text(plaintext_name))
 
     # Run decrpytion
-    with NamedTemporaryFile() as f:
-        plaintext_hat = decrypt(ciphertext, f.name, training_size, num_iters, num_mcmc)
-        print(plaintext_hat)
+    plaintext_hat = decrypt(ciphertext, training_size, num_iters, num_mcmc)
+    print(plaintext_hat)
 
     # Compare decryption to plaintext
     plaintext = get_text(plaintext_name)
