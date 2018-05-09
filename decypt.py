@@ -4,11 +4,8 @@ import argparse
 from collections import Counter
 import copy
 import csv
-import matplotlib
-matplotlib.rcParams.update({'font.size': 30})
-from matplotlib import pyplot as plt
 import numpy as np
-from sklearn.metrics import accuracy_score
+from tempfile import NamedTemporaryFile
 from tqdm import trange
 
 
@@ -66,13 +63,16 @@ def get_letter_transition_matrix(fname='letter_transition_matrix.csv'):
 # ENCRYPTION AND DECRYPTION
 
 
-def encrypt(x, alphabet):
-    f = np.random.permutation(len(alphabet))
+def encrypt_text(x, alphabet=None):
+    alphabet = alphabet if alphabet is not None else get_alphabet()
+
+    perm = np.random.permutation(alphabet)
+    f = {alphabet[i]: perm[i] for i in range(len(alphabet))}
     y = [f[x_i] for x_i in x]
 
     return y
 
-def decrypt(f, y):
+def decrypt_text(f, y):
     x_hat = [f[y_i] for y_i in y]
 
     return x_hat
@@ -167,15 +167,28 @@ def multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmcs):
 
     return best_f
 
-def main(custom_encrypt, training_size, num_iters, num_mcmc):
-    # Load alphabet and text
-    alphabet = get_alphabet()
-    if custom_encrypt:
-        y = encrypt(get_text('plaintext.txt', indices=True), alphabet)
-    else:
-        y = get_text('ciphertext.txt', indices=True)
 
-    # Convert text to indices and load probabilities
+# EVALUATION
+
+
+def accuracy_score(true, pred):
+    true = np.array(list(true))
+    pred = np.array(list(pred))
+    accuracy = np.sum(true == pred) / len(true)
+    
+    return accuracy
+
+
+# DECRYPT
+
+
+def decrypt(ciphertext, output_file_name,
+            training_size=1000, num_iters=10000, num_mcmc=10):
+    # Load alphabet and convert text to indices
+    alphabet = get_alphabet()
+    y = char_to_index(ciphertext)
+
+    # Load probabilities and convert to log domain
     log_P = np.log(get_letter_probabilities())
     log_M = np.nan_to_num(np.log(get_letter_transition_matrix()))
 
@@ -183,19 +196,37 @@ def main(custom_encrypt, training_size, num_iters, num_mcmc):
     f_star = multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmc)
 
     # Decrypt full ciphertext
-    x_hat = decrypt(f_star, y)
-    plaintext_hat = index_to_char(x_hat, alphabet)
-    print(''.join(plaintext_hat))
+    x_hat = decrypt_text(f_star, y)
+    plaintext_hat = ''.join(index_to_char(x_hat, alphabet))
 
-    # Compare decryption to read plaintext
-    plaintext = get_text('plaintext.txt')
+    # Write decrypted ciphertext
+    with open(output_file_name, 'w') as f:
+        f.write(plaintext_hat)
+
+    return plaintext_hat
+
+
+# MAIN
+
+
+def main(plaintext_name, training_size, num_iters, num_mcmc):
+    # Get ciphertext
+    ciphertext = encrypt_text(get_text(plaintext_name))
+
+    # Run decrpytion
+    with NamedTemporaryFile() as f:
+        plaintext_hat = decrypt(ciphertext, f.name, training_size, num_iters, num_mcmc)
+        print(plaintext_hat)
+
+    # Compare decryption to plaintext
+    plaintext = get_text(plaintext_name)
     print('Accuracy = {}'.format(accuracy_score(plaintext, plaintext_hat)))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--custom_encrypt', action='store_true', default=False,
-        help='Whether to use a custom encryption permutation instead of the default')
+    parser.add_argument('--plaintext_name', type=str, default='plaintext.txt',
+        help='Name of plaintext file')
     parser.add_argument('--training_size', type=int, default=1000,
         help='Number of characters to use when learning decryption function')
     parser.add_argument('--num_iters', type=int, default=10000,
@@ -204,4 +235,4 @@ if __name__ == '__main__':
         help='Number of times to run MCMC algorithm')
     args = parser.parse_args()
 
-    main(args.custom_encrypt, args.training_size, args.num_iters, args.num_mcmc)
+    main(args.plaintext_name, args.training_size, args.num_iters, args.num_mcmc)
