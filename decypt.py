@@ -1,11 +1,9 @@
 from __future__ import division
 
-import argparse
 from collections import Counter
 import copy
 import csv
 import numpy as np
-from tempfile import NamedTemporaryFile
 
 
 # ALPHABET
@@ -40,11 +38,11 @@ def index_to_char(indices, alphabet=None):
 # DATA LOADING
 
 
-def get_text(fname, indices=False):
+def get_text(fname):
     with open(fname, 'r') as f:
-        text = np.array(list(f.read().replace('\n', ' ')))
+        text = f.read().replace('\n', ' ')
 
-    return char_to_index(text) if indices else text
+    return text
 
 def get_letter_probabilities(fname='letter_probabilities.csv'):
     with open(fname, 'r') as csvfile:
@@ -59,22 +57,14 @@ def get_letter_transition_matrix(fname='letter_transition_matrix.csv'):
     return M
 
 
-# ENCRYPTION AND DECRYPTION
+# DECRYPTION
 
-
-def encrypt_text(x, alphabet=None):
-    alphabet = alphabet if alphabet is not None else get_alphabet()
-
-    perm = np.random.permutation(alphabet)
-    f = {alphabet[i]: perm[i] for i in range(len(alphabet))}
-    y = [f[x_i] for x_i in x]
-
-    return y
 
 def decrypt_text(f, y):
     x_hat = [f[y_i] for y_i in y]
+    plaintext_hat = ''.join(index_to_char(x_hat))
 
-    return x_hat
+    return plaintext_hat
 
 
 # COUNTS CLASS
@@ -149,7 +139,9 @@ def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
 
     return f_star, log_likelihood
 
-def multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmcs):
+def multi_mcmc(y, training_size, log_P, log_M, num_iters, num_mcmcs):
+    alphabet = get_alphabet()
+
     start = np.random.randint(max(0, len(y)-training_size) + 1)
     training_y = y[start:start+training_size]
     y_counts = Counts(training_y, alphabet)
@@ -167,24 +159,12 @@ def multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmcs):
     return best_f
 
 
-# EVALUATION
-
-
-def accuracy_score(true, pred):
-    true = np.array(list(true))
-    pred = np.array(list(pred))
-    accuracy = np.sum(true == pred) / len(true)
-    
-    return accuracy
-
-
 # DECRYPT
 
 
 def decrypt(ciphertext, output_file_name,
             training_size=1000, num_iters=10000, num_mcmc=10):
-    # Load alphabet and convert text to indices
-    alphabet = get_alphabet()
+    # Convert text to indices
     y = char_to_index(ciphertext)
 
     # Load probabilities and convert to log domain
@@ -192,46 +172,11 @@ def decrypt(ciphertext, output_file_name,
     log_M = np.nan_to_num(np.log(get_letter_transition_matrix()))
 
     # Run MCMC
-    f_star = multi_mcmc(alphabet, y, training_size, log_P, log_M, num_iters, num_mcmc)
+    f_star = multi_mcmc(y, training_size, log_P, log_M, num_iters, num_mcmc)
 
     # Decrypt full ciphertext
-    x_hat = decrypt_text(f_star, y)
-    plaintext_hat = ''.join(index_to_char(x_hat, alphabet))
+    plaintext_hat = decrypt_text(f_star, y)
 
-    # Write decrypted ciphertext
+    # Write decryption
     with open(output_file_name, 'w') as f:
         f.write(plaintext_hat)
-
-    return plaintext_hat
-
-
-# MAIN
-
-
-def main(plaintext_name, training_size, num_iters, num_mcmc):
-    # Get ciphertext
-    ciphertext = encrypt_text(get_text(plaintext_name))
-
-    # Run decrpytion
-    with NamedTemporaryFile() as f:
-        plaintext_hat = decrypt(ciphertext, f.name, training_size, num_iters, num_mcmc)
-        print(plaintext_hat)
-
-    # Compare decryption to plaintext
-    plaintext = get_text(plaintext_name)
-    print('Accuracy = {}'.format(accuracy_score(plaintext, plaintext_hat)))
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--plaintext_name', type=str, default='plaintext.txt',
-        help='Name of plaintext file')
-    parser.add_argument('--training_size', type=int, default=1000,
-        help='Number of characters to use when learning decryption function')
-    parser.add_argument('--num_iters', type=int, default=10000,
-        help='Number of iterations in each MCMC run')
-    parser.add_argument('--num_mcmc', type=int, default=10,
-        help='Number of times to run MCMC algorithm')
-    args = parser.parse_args()
-
-    main(args.plaintext_name, args.training_size, args.num_iters, args.num_mcmc)
