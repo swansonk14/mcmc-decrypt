@@ -62,7 +62,7 @@ def get_letter_transition_matrix(fname='letter_transition_matrix.csv'):
 # ENCRYPTION AND DECRYPTION
 
 
-def encrypt_text(x, alphabet=None):
+def encrypt(x, alphabet=None):
     alphabet = alphabet if alphabet is not None else get_alphabet()
 
     perm = np.random.permutation(alphabet)
@@ -71,7 +71,7 @@ def encrypt_text(x, alphabet=None):
 
     return ciphertext
 
-def decrypt_text(f, y):
+def decrypt(f, y):
     x_hat = [f[y_i] for y_i in y]
     plaintext_hat = ''.join(index_to_char(x_hat))
 
@@ -173,7 +173,7 @@ def multi_mcmc(y, training_size, log_P, log_M, num_iters, num_mcmcs):
 # DECRYPT
 
 
-def decrypt(ciphertext, training_size, num_iters, num_mcmc):
+def decode(ciphertext, training_size, num_iters, num_mcmc):
     # Convert text to indices
     y = char_to_index(ciphertext)
 
@@ -185,7 +185,7 @@ def decrypt(ciphertext, training_size, num_iters, num_mcmc):
     f_star = multi_mcmc(y, training_size, log_P, log_M, num_iters, num_mcmc)
 
     # Decrypt full ciphertext
-    plaintext_hat = decrypt_text(f_star, y)
+    plaintext_hat = decrypt(f_star, y)
 
     return plaintext_hat
 
@@ -206,10 +206,10 @@ def accuracy_score(plaintext, plaintext_hat):
 
 def main(plaintext_name, training_size, num_iters, num_mcmc):
     # Get ciphertext
-    ciphertext = encrypt_text(get_text(plaintext_name))
+    ciphertext = encrypt(get_text(plaintext_name))
 
     # Run decrpytion
-    plaintext_hat = decrypt(ciphertext, training_size, num_iters, num_mcmc)
+    plaintext_hat = decode(ciphertext, training_size, num_iters, num_mcmc)
     print(plaintext_hat)
 
     # Compare decryption to plaintext
