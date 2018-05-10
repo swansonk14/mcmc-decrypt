@@ -111,14 +111,11 @@ def log_p_f_y_tilde(f, y_counts, log_P, log_M):
 
     return log_prob
 
-def acceptance_prob(f, f_prime, y_counts, log_P, log_M):
+def acceptance_prob(f_prime_log_prob, f_log_prob):
     # p_f_prime / p_f = exp(log(p_f_prime)) / exp(log(p_f))
     # = exp(log(p_f_prime) - log(p_f))
 
-    log_p_f_y_tilde_f_prime = log_p_f_y_tilde(f_prime, y_counts, log_P, log_M)
-    log_p_f_y_tilde_f = log_p_f_y_tilde(f, y_counts, log_P, log_M)
-    ratio = np.exp(log_p_f_y_tilde_f_prime - log_p_f_y_tilde_f)
-
+    ratio = np.exp(f_prime_log_prob - f_log_prob)
     a = min(1, ratio)
 
     return a
@@ -132,16 +129,19 @@ def most_common(lst):
 def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
     fs = []
     f = np.random.permutation(len(alphabet))  # random initialization
+    f_log_prob = log_p_f_y_tilde(f, y_counts, log_P, log_M)
 
     for _ in trange(num_iters):
         index1, index2 = np.random.choice(len(alphabet), size=2, replace=False)
         f_prime = copy.deepcopy(f)
         f_prime[index1], f_prime[index2] = f_prime[index2], f_prime[index1]
 
-        a = acceptance_prob(f, f_prime, y_counts, log_P, log_M)
+        f_prime_log_prob = log_p_f_y_tilde(f_prime, y_counts, log_P, log_M)
+        a = acceptance_prob(f_prime_log_prob, f_log_prob)
 
         if np.random.rand() <= a:
             f = f_prime
+            f_log_prob = f_prime_log_prob
 
         fs.append(str(f.tolist()))
 
