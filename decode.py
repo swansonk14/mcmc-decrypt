@@ -120,7 +120,7 @@ def mcmc(alphabet, y_counts, log_P, log_M, num_iters):
     f = np.random.permutation(len(alphabet))  # random initialization
     f_log_prob = log_p_f_y_tilde(f, y_counts, log_P, log_M)
 
-    for _ in trange(num_iters):
+    for _ in range(num_iters):
         index1, index2 = np.random.choice(len(alphabet), size=2, replace=False)
         f_prime = copy.deepcopy(f)
         f_prime[index1], f_prime[index2] = f_prime[index2], f_prime[index1]
